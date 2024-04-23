@@ -1,0 +1,97 @@
+cd /mnt/d/Brain_region_project/Data_for_cNMF
+conda activate cnmf_env
+python
+
+import os
+import pandas as pd
+import numpy as np
+from scipy.io import mmread
+import scipy.sparse as sp
+import matplotlib.pyplot as plt
+from IPython.display import Image
+import scanpy as sc
+
+np.random.seed(14)
+
+adata = sc.read_h5ad("Inh_1000.h5ad")
+sc.pp.filter_genes(adata, min_cells=3)
+
+#the following line may only be necessary when creating h5ad file with SeuratDisk
+adata.__dict__['_raw'].__dict__['_var'] = adata.__dict__['_raw'].__dict__['_var'].rename(columns={'_index': 'features'})
+count_adat_fn = 'Inh_1000_counts.h5ad'
+sc.write(count_adat_fn, adata)
+
+
+#######################################################################################
+
+conda activate cnmf_env
+cd /mnt/d/Brain_region_project/Data_for_cNMF
+
+python ./cnmf.py prepare --output-dir ./cNMF --name Inh_cNMF_1000 -c ./Inh_1000_counts.h5ad -k 5 10 12 14 16 18 20 22 24 26 28 30 32 34 36 38 40  --n-iter 200 --total-workers 1 --seed 14 --numgenes 2000
+
+python ./cnmf.py factorize --output-dir ./cNMF --name Inh_cNMF_1000 --worker-index 0
+
+python ./cnmf.py combine --output-dir ./cNMF --name Inh_cNMF_1000
+
+python ./cnmf.py k_selection_plot --output-dir ./cNMF --name Inh_cNMF_1000
+
+python ./cnmf.py consensus --output-dir ./cNMF --name Inh_cNMF_1000 --components 28 --local-density-threshold 2 --show-clustering
+
+python ./cnmf.py consensus --output-dir ./cNMF --name Inh_cNMF_1000 --components 28 --local-density-threshold 0.2 --show-clustering
+
+#######################################################################################
+
+cd /mnt/d/Brain_region_project/Data_for_cNMF
+conda activate cnmf_env
+python
+import os
+import pandas as pd
+import numpy as np
+from scipy.io import mmread
+import scipy.sparse as sp
+import matplotlib.pyplot as plt
+from IPython.display import Image
+import scanpy as sc
+
+usage = pd.read_csv('./cNMF/Inh_cNMF_1000/Inh_cNMF_1000.usages.k_28.dt_0_2.consensus.txt',sep='\t', index_col=0)
+usage.columns = ['Usage_%s' % i for i in usage.columns]
+usage.head()
+
+usage_norm = usage.div(usage.sum(axis=1), axis=0)
+usage_norm.head()
+
+usage_norm.to_csv('Inh_cNMF_1000_usage_norm.csv')
+
+## Load the Z-scored GEPs which reflect how enriched a gene is in each GEP relative to all of the others
+gene_scores = pd.read_csv('./cNMF/Inh_cNMF_1000/Inh_cNMF_1000.gene_spectra_score.k_28.dt_0_2.txt',sep='\t', index_col=0).T
+gene_scores.head()
+
+top_genes = []
+ngenes = 40
+for gep in gene_scores.columns:
+    top_genes.append(list(gene_scores.sort_values(by=gep, ascending=False).index[:ngenes]))
+
+top_genes = pd.DataFrame(top_genes, index=gene_scores.columns).T
+top_genes
+
+gene_scores.to_csv('Inh_cNMF_1000_gene_scores.csv')
+top_genes.to_csv('Inh_cNMF_1000_top_genes.csv')
+
+
+#Extract top200 genes
+
+gene_scores = pd.read_csv('./cNMF/Inh_cNMF_1000/Inh_cNMF_1000.gene_spectra_score.k_28.dt_0_2.txt',sep='\t', index_col=0).T
+gene_scores.head()
+
+
+## Obtain the top 200 genes for each GEP in sorted order and combine them into a single dataframe
+
+top_genes = []
+ngenes = 200
+for gep in gene_scores.columns:
+    top_genes.append(list(gene_scores.sort_values(by=gep, ascending=False).index[:ngenes]))
+
+top_genes = pd.DataFrame(top_genes, index=gene_scores.columns).T
+top_genes
+
+top_genes.to_csv('Inh_cNMF_1000_top_200_genes.csv')

@@ -1,0 +1,63 @@
+#!/usr/bin/R
+# --------------------------------------------
+# Plot the ligand receptor heatmap for Inh-Exc
+# Updated 11/29/2023
+# --------------------------------------------
+library(cbrbase)
+set_proj('DEVTRAJ', 'multiRegion')
+source(paste0(sbindir, 'load_metadata.R'))
+
+library(tidyr)
+library(ggplot2)
+library(ggpubr)
+library(viridis)
+library(ComplexHeatmap)
+library(circlize)
+options(width=170)
+
+# Directories:
+plotdir = paste0(imgdir, 'metadata/')
+imgpref = plotdir
+cmd = paste('mkdir -p', plotdir)
+system(cmd)
+
+source(paste0(sbindir, 'auxiliary_plotting_settings.R'))
+
+
+# Load in ligand scores:
+# ----------------------
+udf = read.delim(paste0(sdbdir, 'Top_up_interactions.csv'), sep=',', header=T)
+ddf = read.delim(paste0(sdbdir, 'Top_down_interactions.csv'), sep=',', header=T)
+udf = udf[udf$target %in% c('Exc','Inh'),]
+ddf = ddf[ddf$target %in% c('Exc','Inh'),]
+
+umat = as.matrix(udf[, reg.nomb])
+dmat = as.matrix(ddf[, reg.nomb])
+rownames(umat) = udf$interaction
+rownames(dmat) = ddf$interaction
+cmat = rbind(umat, dmat)
+# cmat[is.na(cmat)] = 0
+
+# Plot matrix:
+mx = max(cmat, na.rm=T)
+col_fun = colorRamp2(c(0, mx), c("white", col2[100])) # "firebrick"))
+ux = 1.5
+ht = Heatmap(cmat, 
+    use_raster=FALSE, 
+    name='Interaction\nscore',
+    col=col_fun,
+    cluster_columns=FALSE, 
+    cluster_rows=FALSE,
+    cluster_row_slices=FALSE,
+    row_dend_width = unit(.25, "cm"),
+    column_dend_height = unit(.25, "cm"),
+    row_dend_gp = gpar(lwd=.5),
+    column_dend_gp = gpar(lwd=.5),
+    border_gp = gpar(col="black", lwd=.5),
+    width=ncol(cmat) * unit(ux, 'mm'),
+    height=nrow(cmat) * unit(ux, 'mm'))
+
+pltprefix = paste0(imgpref, 'NXPH1_interaction_scores')
+h = .5 + 1 / 15 * nrow(cmat)
+w = 1.5 + 1 / 15 * ncol(cmat)
+saveHeatmap(ht, pltprefix, w=w, h=h)
